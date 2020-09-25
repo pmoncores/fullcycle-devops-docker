@@ -1,0 +1,53 @@
+version: '3'
+services: 
+    app:
+        build: . # tem um docker file no diretório corrente
+        container_name: app
+        entrypoint: dockerize -wait tcp://db:3306 -timeout 40s php-fpm # aguarda o serviço db:3306 subir em até 40seg e em seguida roda o php-fpm
+        volumes:
+            - .:/var/www # sincroniza pasta laravel (corrente) dentro do www no      
+        networks:
+            - app-network # nome da rede para conversarem entre si (ver fim deste arquivo)
+        depends_on: 
+            - db
+            - redis
+    ngnix:
+        build: .docker/nginx #local/diretorio aonde está o dockerfile para criar imagem
+        container_name: nginx
+        restart: always # reentra caso caia o serviço
+        tty: true # equivale ao -it quando entra no container com "docker exec"
+        ports: 
+            - "8000:80" #acesso 8080 pelo localhost para a porta 80 do container
+        volumes: 
+            - .:/var/www # sincroniza pasta laravel (corrente) dentro do www no 
+        networks:
+            - app-network # nome da rede para conversarem entre si (ver fim deste arquivo)   
+        depends_on: 
+            - app 
+    db:
+        build: .docker/mysql #local/diretorio aonde está o dockerfile para criar imagem
+        command: --innodb-use-native-aio=0 # específico do MySQL para funcionar em um container!?!?!
+        container_name: db
+        restart: always # reentra caso caia o serviço
+        tty: true # equivale ao -it quando entra no container com "docker exec"
+        ports: 
+            - "3306:3306" #acesso 8080 pelo localhost para a porta 80 do container
+        volumes: 
+            - ./.docker/dbdata:/var/lib/mysql # sincroniza o arquivo de dados do mySQL do container com local
+        environment:
+            - MYSQL_DATABASE=laravel
+            - MYSQL_USER=root
+            - MYSQL_ROOT_PASSWORD=root
+        networks:
+            - app-network # nome da rede para conversarem entre si (ver fim deste arquivo)    
+    redis:
+        image: redis:alpine # nome da imagem para baixar
+        expose:
+            - 6379 #porta
+        networks:
+            - app-network # nome da rede para conversarem entre si (ver fim deste arquivo)    
+    
+networks: 
+    app-network:
+        driver: bridge
+        
